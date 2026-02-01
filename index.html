@@ -45,7 +45,7 @@
     #yes{ background:#ff3b6b; color:white; }
     #yes:hover{ transform: translateY(-2px) scale(1.02); }
 
-    /* Le "Non" est en position fixed pour pouvoir fuir partout, même hors de la carte */
+    /* Bouton NON: position fixed pour pouvoir fuir partout */
     #no{
       background: white;
       color:#333;
@@ -64,14 +64,13 @@
       min-height: 28px;
     }
 
-    /* zone photo */
     .photoWrap{
       margin-top: 14px;
       display:none;
       justify-content:center;
     }
     .photo{
-      width:min(360px, 80vw);
+      width:min(380px, 82vw);
       border-radius: 18px;
       border: 1px solid rgba(0,0,0,.08);
       box-shadow: 0 16px 40px rgba(0,0,0,.18);
@@ -99,96 +98,93 @@
 
     <div class="arena">
       <button id="yes">Oui 😍</button>
-      <!-- le bouton Non est fixed (il est donc hors du flow), mais on le garde ici dans le HTML -->
       <button id="no">Non 🙃</button>
     </div>
 
     <div id="result"></div>
 
     <div class="photoWrap" id="photoWrap">
-      <!-- Mets ta photo dans le repo: photo.jpg (ou change le nom ici) -->
-      <img class="photo" id="photo" src="photo.jpg" alt="Nous ❤️" />
+      <!-- Upload une image dans le repo : photo.jpg (ou change le nom ici) -->
+      <img class="photo" id="photo" src="photo.jpg" alt="Nous ❤️"
+           onerror="this.style.display='none'; document.getElementById('result').textContent += ' (Ajoute une image nommée photo.jpg dans le repo)';" />
     </div>
   </div>
 
   <script>
-    // --- Réglages fuite ---
-    const RADIUS = 140;     // rayon autour de la souris (px) : augmente pour plus "large"
-    const SPEED  = 0.22;    // vitesse de déplacement (0.10 lent -> 0.35 très rapide)
-    const MIN_DIST = 120;
-    const JITTER = 0,35;
-    const START_OFFSET = { x: 120, y: 40 };
+    // ===== Réglages fuite =====
+    const RADIUS   = 160;   // rayon autour de la souris où le bouton vise (px)
+    const MIN_DIST = 130;   // distance minimale bouton-souris (px) -> empêche qu'il arrive sur la souris
+    const SPEED    = 0.28;  // vitesse de glissement (0.18 lent -> 0.35 très rapide)
+    const JITTER   = 0.45;  // aléa directionnel pour éviter les alignements
+    const DODGE_ON_HOVER_BOOST = 220; // boost quand la souris le touche presque
 
     const noBtn  = document.getElementById("no");
     const yesBtn = document.getElementById("yes");
     const result = document.getElementById("result");
     const photoWrap = document.getElementById("photoWrap");
 
-    // position courante du bouton (en coordonnées écran)
-    let pos = { x: window.innerWidth*0.6, y: window.innerHeight*0.55 };
-    // cible vers laquelle il va glisser (mise à jour selon la souris)
+    // Position bouton (coordonnées écran)
+    let pos = { x: window.innerWidth * 0.65, y: window.innerHeight * 0.55 };
     let target = { ...pos };
-    // dernière position souris
-    let mouse = { x: window.innerWidth/2, y: window.innerHeight/2 };
+    let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
-    // init position
+    // Rend le bouton visible + place initialement
+    noBtn.style.display = "inline-block";
     noBtn.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%)`;
 
-function setTargetAwayFromMouse() {
-  // vecteur souris -> bouton (on veut pousser dans ce sens)
-  let dx = pos.x - mouse.x;
-  let dy = pos.y - mouse.y;
+    function setTargetAwayFromMouse(extraPush = 0) {
+      // vecteur souris -> bouton (direction de fuite)
+      let dx = pos.x - mouse.x;
+      let dy = pos.y - mouse.y;
 
-  // si trop proche (ou pile dessus), on force une direction aléatoire
-  let len = Math.hypot(dx, dy);
-  if (!len || len < 1) {
-    const a = Math.random() * Math.PI * 2;
-    dx = Math.cos(a);
-    dy = Math.sin(a);
-    len = 1;
-  }
+      let len = Math.hypot(dx, dy);
+      if (!len || len < 1) {
+        const a = Math.random() * Math.PI * 2;
+        dx = Math.cos(a);
+        dy = Math.sin(a);
+        len = 1;
+      }
 
-  // direction normalisée
-  let ux = dx / len;
-  let uy = dy / len;
+      // direction normalisée
+      let ux = dx / len;
+      let uy = dy / len;
 
-  // petit jitter angulaire pour éviter les alignements parfaits
-  const angle = (Math.random() - 0.5) * 2 * JITTER; // [-JITTER, +JITTER]
-  const cosA = Math.cos(angle), sinA = Math.sin(angle);
-  const rux = ux * cosA - uy * sinA;
-  const ruy = ux * sinA + uy * cosA;
+      // jitter (petite rotation aléatoire)
+      const angle = (Math.random() - 0.5) * 2 * JITTER;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
+      const rux = ux * cosA - uy * sinA;
+      const ruy = ux * sinA + uy * cosA;
 
-  // distance cible = max(RADIUS, MIN_DIST + marge)
-  const desired = Math.max(RADIUS, MIN_DIST + 40);
+      // distance désirée: au moins MIN_DIST, et en général autour de RADIUS
+      const desired = Math.max(RADIUS, MIN_DIST + 40) + extraPush;
 
-  target.x = mouse.x + rux * desired;
-  target.y = mouse.y + ruy * desired;
-}
+      target.x = mouse.x + rux * desired;
+      target.y = mouse.y + ruy * desired;
+      // On autorise la sortie d’écran => pas de clamp.
+    }
 
+    function tick() {
+      // garde-fou: si trop proche, on recalcul une cible immédiatement
+      const d = Math.hypot(pos.x - mouse.x, pos.y - mouse.y);
+      if (d < MIN_DIST) setTargetAwayFromMouse(80);
 
-    // boucle d’animation fluide
-   function tick() {
-  // si le bouton s'approche trop, on recalcule une cible immédiatement
-  const d = Math.hypot(pos.x - mouse.x, pos.y - mouse.y);
-  if (d < MIN_DIST) setTargetAwayFromMouse();
+      // interpolation fluide vers target
+      pos.x += (target.x - pos.x) * SPEED;
+      pos.y += (target.y - pos.y) * SPEED;
 
-  pos.x += (target.x - pos.x) * SPEED;
-  pos.y += (target.y - pos.y) * SPEED;
-
-  noBtn.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%)`;
-  requestAnimationFrame(tick);
-}
-
+      noBtn.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%)`;
+      requestAnimationFrame(tick);
+    }
     requestAnimationFrame(tick);
 
-    // Détecte la souris et déclenche la fuite
+    // Suivi souris
     window.addEventListener("mousemove", (e) => {
       mouse.x = e.clientX;
       mouse.y = e.clientY;
       setTargetAwayFromMouse();
     });
 
-    // Sur mobile: on utilise le doigt
+    // Mobile: suivi doigt
     window.addEventListener("touchmove", (e) => {
       if (!e.touches || !e.touches[0]) return;
       mouse.x = e.touches[0].clientX;
@@ -196,25 +192,23 @@ function setTargetAwayFromMouse() {
       setTargetAwayFromMouse();
     }, { passive: true });
 
-    // Au survol proche: on booste la fuite (donne l'impression "plus vite")
-    noBtn.addEventListener("mouseenter", () => {
-      // petit “dash” initial
-      target.x = pos.x + (pos.x - mouse.x) + START_OFFSET.x;
-      target.y = pos.y + (pos.y - mouse.y) + START_OFFSET.y;
-    });
+    // Quand on arrive vraiment dessus, gros boost (donne l'impression "il va plus vite")
+    noBtn.addEventListener("mouseenter", () => setTargetAwayFromMouse(DODGE_ON_HOVER_BOOST));
 
-    // Empêche le clic sur Non sur mobile (il fuit)
-    noBtn.addEventListener("touchstart", (e) => e.preventDefault(), { passive:false });
+    // Empêche un tap de valider "Non" sur mobile
+    noBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      setTargetAwayFromMouse(DODGE_ON_HOVER_BOOST);
+    }, { passive:false });
 
-    // Oui -> message + photo + pluie de cœurs
+    // Clic oui
     yesBtn.addEventListener("click", () => {
       result.textContent = "Yesss 😭❤️ Bonne Saint-Valentin mon amour !";
       photoWrap.style.display = "flex";
       noBtn.style.display = "none";
       yesBtn.disabled = true;
       yesBtn.textContent = "💞💞💞";
-
-      for (let i=0; i<22; i++) spawnHeart();
+      for (let i=0; i<26; i++) spawnHeart();
     });
 
     function spawnHeart(){
@@ -222,14 +216,14 @@ function setTargetAwayFromMouse() {
       h.className = "heart";
       h.textContent = ["❤️","💖","💘","💕","💗"][Math.floor(Math.random()*5)];
       const x = Math.random() * window.innerWidth;
-      const y = window.innerHeight - 40 - Math.random()*120;
+      const y = window.innerHeight - 40 - Math.random()*140;
       h.style.left = x + "px";
       h.style.top  = y + "px";
       document.body.appendChild(h);
       setTimeout(() => h.remove(), 1400);
     }
 
-    // si pas de souris au début, on met une cible initiale
+    // initialisation de la cible
     setTargetAwayFromMouse();
   </script>
 </body>
