@@ -8,104 +8,209 @@
     body{
       margin:0; min-height:100vh; display:grid; place-items:center;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: #ffe6ee;
+      background: radial-gradient(circle at top, #ffdde1, #ee9ca7);
+      overflow:hidden;
     }
     .card{
-      width:min(520px, 92vw);
-      background:white;
-      border-radius:18px;
-      padding:24px;
+      width:min(560px, 92vw);
+      background: rgba(255,255,255,.78);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,.6);
+      border-radius: 22px;
+      padding: 26px 22px;
       text-align:center;
-      box-shadow: 0 18px 50px rgba(0,0,0,.15);
+      box-shadow: 0 20px 60px rgba(0,0,0,.15);
     }
+    h1{ margin:0 0 10px; font-size: clamp(26px, 4.5vw, 38px); }
+    p{ margin:0 0 16px; opacity:.85; }
+
     .arena{
-      position:relative;
-      height:120px;
-      margin-top:16px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:12px;
+      position: relative;
+      height: 150px;
+      margin-top: 10px;
     }
+
     button{
-      border:0;
-      padding:12px 18px;
-      border-radius:999px;
-      font-size:18px;
+      border:0; border-radius: 999px;
+      padding: 14px 22px;
+      font-size: 18px;
       cursor:pointer;
+      transition: transform .12s ease, box-shadow .12s ease;
       box-shadow: 0 10px 22px rgba(0,0,0,.12);
+      user-select:none;
+      touch-action: manipulation;
+      position: relative;
+      z-index: 2;
     }
-    #yes{ background:#ff3b6b; color:#fff; }
+    #yes{ background:#ff3b6b; color:white; }
+    #yes:hover{ transform: translateY(-2px) scale(1.02); }
+
+    /* Le "Non" est en position fixed pour pouvoir fuir partout, même hors de la carte */
     #no{
-      position:absolute;
-      left:60%;
-      top:50%;
-      transform: translate(-50%,-50%);
-      background:#f3f3f3;
-      color:#111;
+      background: white;
+      color:#333;
+      position: fixed;
+      left: 60vw;
+      top: 55vh;
+      z-index: 3;
+      will-change: transform;
     }
-    #result{ margin-top:14px; font-size:20px; font-weight:700; color:#ff2e63; }
+
+    #result{
+      margin-top: 14px;
+      font-size: 20px;
+      font-weight: 700;
+      color:#ff2e63;
+      min-height: 28px;
+    }
+
+    /* zone photo */
+    .photoWrap{
+      margin-top: 14px;
+      display:none;
+      justify-content:center;
+    }
+    .photo{
+      width:min(360px, 80vw);
+      border-radius: 18px;
+      border: 1px solid rgba(0,0,0,.08);
+      box-shadow: 0 16px 40px rgba(0,0,0,.18);
+    }
+
+    .heart{
+      position: fixed;
+      font-size: 22px;
+      pointer-events:none;
+      animation: floatUp 1.2s ease forwards;
+      filter: drop-shadow(0 6px 8px rgba(0,0,0,.15));
+      z-index: 4;
+    }
+    @keyframes floatUp{
+      0%{ transform: translateY(0) scale(.9); opacity:0; }
+      15%{ opacity:1; }
+      100%{ transform: translateY(-140px) scale(1.25); opacity:0; }
+    }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Veux-tu être ma Valentine ? 💘</h1>
-    <p>Choisis bien 😅</p>
+    <p>Promis, une réponse est plus facile que l’autre 😅</p>
 
-    <div class="arena" id="arena">
+    <div class="arena">
       <button id="yes">Oui 😍</button>
+      <!-- le bouton Non est fixed (il est donc hors du flow), mais on le garde ici dans le HTML -->
       <button id="no">Non 🙃</button>
     </div>
 
     <div id="result"></div>
 
-    <noscript>
-      <p style="color:#b00; font-weight:700;">
-        Active JavaScript pour que le bouton "Non" puisse fuir 😄
-      </p>
-    </noscript>
+    <div class="photoWrap" id="photoWrap">
+      <!-- Mets ta photo dans le repo: photo.jpg (ou change le nom ici) -->
+      <img class="photo" id="photo" src="photo.jpg" alt="Nous ❤️" />
+    </div>
   </div>
 
   <script>
-    window.addEventListener("DOMContentLoaded", () => {
-      const arena = document.getElementById("arena");
-      const noBtn = document.getElementById("no");
-      const yesBtn = document.getElementById("yes");
-      const result = document.getElementById("result");
+    // --- Réglages fuite ---
+    const RADIUS = 140;     // rayon autour de la souris (px) : augmente pour plus "large"
+    const SPEED  = 0.22;    // vitesse de déplacement (0.10 lent -> 0.35 très rapide)
+    const START_OFFSET = { x: 120, y: 40 };
 
-      if (!arena || !noBtn || !yesBtn || !result) {
-        document.body.innerHTML = "<p>Erreur: éléments introuvables dans la page.</p>";
-        return;
-      }
+    const noBtn  = document.getElementById("no");
+    const yesBtn = document.getElementById("yes");
+    const result = document.getElementById("result");
+    const photoWrap = document.getElementById("photoWrap");
 
-      function moveNo() {
-        const a = arena.getBoundingClientRect();
-        const b = noBtn.getBoundingClientRect();
-        const pad = 8;
+    // position courante du bouton (en coordonnées écran)
+    let pos = { x: window.innerWidth*0.6, y: window.innerHeight*0.55 };
+    // cible vers laquelle il va glisser (mise à jour selon la souris)
+    let target = { ...pos };
+    // dernière position souris
+    let mouse = { x: window.innerWidth/2, y: window.innerHeight/2 };
 
-        const maxX = Math.max(pad, a.width - b.width - pad);
-        const maxY = Math.max(pad, a.height - b.height - pad);
+    // init position
+    noBtn.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%)`;
 
-        const x = pad + Math.random() * (maxX - pad);
-        const y = pad + Math.random() * (maxY - pad);
+    function setTargetAwayFromMouse() {
+      // vecteur bouton -> souris (on veut aller dans la direction opposée)
+      const dx = pos.x - mouse.x;
+      const dy = pos.y - mouse.y;
 
-        noBtn.style.left = x + "px";
-        noBtn.style.top = y + "px";
-        noBtn.style.transform = "translate(0,0)";
-      }
+      // si la souris est pile dessus, on force une direction
+      let len = Math.hypot(dx, dy) || 1;
 
-      noBtn.addEventListener("mouseenter", moveNo);
-      noBtn.addEventListener("touchstart", (e) => { e.preventDefault(); moveNo(); }, { passive:false });
+      // direction normalisée
+      const ux = dx / len;
+      const uy = dy / len;
 
-      yesBtn.addEventListener("click", () => {
-        result.textContent = "YESSS ❤️ Bonne Saint-Valentin 😭💘";
-        noBtn.style.display = "none";
-        yesBtn.disabled = true;
-        yesBtn.textContent = "💞";
-      });
+      // la cible est placée à un rayon RADIUS autour de la souris, dans la direction opposée
+      target.x = mouse.x + ux * RADIUS;
+      target.y = mouse.y + uy * RADIUS;
+      // Autorisé à sortir de l'écran: on ne clamp pas volontairement
+    }
 
-      moveNo();
+    // boucle d’animation fluide
+    function tick() {
+      // interpolation vers la cible
+      pos.x += (target.x - pos.x) * SPEED;
+      pos.y += (target.y - pos.y) * SPEED;
+
+      noBtn.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%)`;
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    // Détecte la souris et déclenche la fuite
+    window.addEventListener("mousemove", (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      setTargetAwayFromMouse();
     });
+
+    // Sur mobile: on utilise le doigt
+    window.addEventListener("touchmove", (e) => {
+      if (!e.touches || !e.touches[0]) return;
+      mouse.x = e.touches[0].clientX;
+      mouse.y = e.touches[0].clientY;
+      setTargetAwayFromMouse();
+    }, { passive: true });
+
+    // Au survol proche: on booste la fuite (donne l'impression "plus vite")
+    noBtn.addEventListener("mouseenter", () => {
+      // petit “dash” initial
+      target.x = pos.x + (pos.x - mouse.x) + START_OFFSET.x;
+      target.y = pos.y + (pos.y - mouse.y) + START_OFFSET.y;
+    });
+
+    // Empêche le clic sur Non sur mobile (il fuit)
+    noBtn.addEventListener("touchstart", (e) => e.preventDefault(), { passive:false });
+
+    // Oui -> message + photo + pluie de cœurs
+    yesBtn.addEventListener("click", () => {
+      result.textContent = "Yesss 😭❤️ Bonne Saint-Valentin mon amour !";
+      photoWrap.style.display = "flex";
+      noBtn.style.display = "none";
+      yesBtn.disabled = true;
+      yesBtn.textContent = "💞💞💞";
+
+      for (let i=0; i<22; i++) spawnHeart();
+    });
+
+    function spawnHeart(){
+      const h = document.createElement("div");
+      h.className = "heart";
+      h.textContent = ["❤️","💖","💘","💕","💗"][Math.floor(Math.random()*5)];
+      const x = Math.random() * window.innerWidth;
+      const y = window.innerHeight - 40 - Math.random()*120;
+      h.style.left = x + "px";
+      h.style.top  = y + "px";
+      document.body.appendChild(h);
+      setTimeout(() => h.remove(), 1400);
+    }
+
+    // si pas de souris au début, on met une cible initiale
+    setTargetAwayFromMouse();
   </script>
 </body>
 </html>
