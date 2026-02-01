@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>❤️ Valentine ?</title>
+  <style>
+    :root { --bg1:#ffdde1; --bg2:#ee9ca7; }
+    body{
+      margin:0; min-height:100vh; display:grid; place-items:center;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(circle at top, var(--bg1), var(--bg2));
+      overflow:hidden;
+    }
+    .card{
+      width:min(520px, 92vw);
+      background: rgba(255,255,255,.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,.6);
+      border-radius: 22px;
+      padding: 28px 22px;
+      text-align:center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.15);
+    }
+    h1{ margin:0 0 10px; font-size: clamp(26px, 4.5vw, 38px); }
+    p{ margin:0 0 18px; opacity:.85; }
+    .buttons{
+      position: relative;
+      height: 120px; /* zone où le bouton "Non" peut fuir */
+      display:flex; justify-content:center; gap: 14px; align-items:center;
+    }
+    button{
+      border:0; border-radius: 999px;
+      padding: 14px 22px;
+      font-size: 18px;
+      cursor:pointer;
+      transition: transform .12s ease, box-shadow .12s ease;
+      box-shadow: 0 10px 22px rgba(0,0,0,.12);
+      user-select:none;
+      touch-action: manipulation;
+    }
+    #yes{ background:#ff3b6b; color:white; }
+    #yes:hover{ transform: translateY(-2px) scale(1.02); }
+    #no{
+      background: white;
+      color:#333;
+      position:absolute; /* nécessaire pour le déplacer librement */
+      left: 58%;
+      top: 50%;
+      transform: translate(-50%,-50%);
+    }
+    #result{
+      margin-top: 14px;
+      font-size: 20px;
+      font-weight: 600;
+      color:#ff2e63;
+      min-height: 28px;
+    }
+    .heart{
+      position: fixed;
+      font-size: 22px;
+      pointer-events:none;
+      animation: floatUp 1.2s ease forwards;
+      filter: drop-shadow(0 6px 8px rgba(0,0,0,.15));
+    }
+    @keyframes floatUp{
+      0%{ transform: translateY(0) scale(.9); opacity:0; }
+      15%{ opacity:1; }
+      100%{ transform: translateY(-120px) scale(1.25); opacity:0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Veux-tu être ma Valentine ? 💘</h1>
+    <p>(Attention… une réponse est un peu timide 😅)</p>
+
+    <div class="buttons" id="arena">
+      <button id="yes">Oui 😍</button>
+      <button id="no">Non 🙃</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const arena = document.getElementById("arena");
+    const noBtn  = document.getElementById("no");
+    const yesBtn = document.getElementById("yes");
+    const result = document.getElementById("result");
+
+    function moveNoButton() {
+      const a = arena.getBoundingClientRect();
+      const b = noBtn.getBoundingClientRect();
+
+      // limites pour rester dans la zone "arena"
+      const padding = 10;
+      const maxX = a.width - b.width - padding;
+      const maxY = a.height - b.height - padding;
+
+      // position aléatoire
+      const x = padding + Math.random() * Math.max(0, maxX);
+      const y = padding + Math.random() * Math.max(0, maxY);
+
+      noBtn.style.left = x + "px";
+      noBtn.style.top  = y + "px";
+      noBtn.style.transform = "translate(0,0)";
+    }
+
+    // "Fuite" à la souris
+    noBtn.addEventListener("mouseenter", moveNoButton);
+    // Sur mobile, dès qu’on essaie de toucher
+    noBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      moveNoButton();
+    }, { passive: false });
+
+    yesBtn.addEventListener("click", () => {
+      result.textContent = "Yesss !! 😭❤️ Je t’aime. Bonne Saint-Valentin !";
+      for (let i=0; i<16; i++) spawnHeart();
+      noBtn.style.display = "none";
+      yesBtn.textContent = "💞💞💞";
+      yesBtn.disabled = true;
+    });
+
+    function spawnHeart(){
+      const h = document.createElement("div");
+      h.className = "heart";
+      h.textContent = ["❤️","💖","💘","💕","💗"][Math.floor(Math.random()*5)];
+      const x = Math.random() * window.innerWidth;
+      const y = window.innerHeight - 40 - Math.random()*80;
+      h.style.left = x + "px";
+      h.style.top  = y + "px";
+      document.body.appendChild(h);
+      setTimeout(() => h.remove(), 1400);
+    }
+
+    // petite fuite dès le chargement (fun)
+    moveNoButton();
+  </script>
+</body>
+</html>
