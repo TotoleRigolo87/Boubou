@@ -115,6 +115,8 @@
     // --- Réglages fuite ---
     const RADIUS = 140;     // rayon autour de la souris (px) : augmente pour plus "large"
     const SPEED  = 0.22;    // vitesse de déplacement (0.10 lent -> 0.35 très rapide)
+    const MIN_DIST = 120;
+    const JITTER = 0,35;
     const START_OFFSET = { x: 120, y: 40 };
 
     const noBtn  = document.getElementById("no");
@@ -132,33 +134,51 @@
     // init position
     noBtn.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%)`;
 
-    function setTargetAwayFromMouse() {
-      // vecteur bouton -> souris (on veut aller dans la direction opposée)
-      const dx = pos.x - mouse.x;
-      const dy = pos.y - mouse.y;
+function setTargetAwayFromMouse() {
+  // vecteur souris -> bouton (on veut pousser dans ce sens)
+  let dx = pos.x - mouse.x;
+  let dy = pos.y - mouse.y;
 
-      // si la souris est pile dessus, on force une direction
-      let len = Math.hypot(dx, dy) || 1;
+  // si trop proche (ou pile dessus), on force une direction aléatoire
+  let len = Math.hypot(dx, dy);
+  if (!len || len < 1) {
+    const a = Math.random() * Math.PI * 2;
+    dx = Math.cos(a);
+    dy = Math.sin(a);
+    len = 1;
+  }
 
-      // direction normalisée
-      const ux = dx / len;
-      const uy = dy / len;
+  // direction normalisée
+  let ux = dx / len;
+  let uy = dy / len;
 
-      // la cible est placée à un rayon RADIUS autour de la souris, dans la direction opposée
-      target.x = mouse.x + ux * RADIUS;
-      target.y = mouse.y + uy * RADIUS;
-      // Autorisé à sortir de l'écran: on ne clamp pas volontairement
-    }
+  // petit jitter angulaire pour éviter les alignements parfaits
+  const angle = (Math.random() - 0.5) * 2 * JITTER; // [-JITTER, +JITTER]
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  const rux = ux * cosA - uy * sinA;
+  const ruy = ux * sinA + uy * cosA;
+
+  // distance cible = max(RADIUS, MIN_DIST + marge)
+  const desired = Math.max(RADIUS, MIN_DIST + 40);
+
+  target.x = mouse.x + rux * desired;
+  target.y = mouse.y + ruy * desired;
+}
+
 
     // boucle d’animation fluide
-    function tick() {
-      // interpolation vers la cible
-      pos.x += (target.x - pos.x) * SPEED;
-      pos.y += (target.y - pos.y) * SPEED;
+   function tick() {
+  // si le bouton s'approche trop, on recalcule une cible immédiatement
+  const d = Math.hypot(pos.x - mouse.x, pos.y - mouse.y);
+  if (d < MIN_DIST) setTargetAwayFromMouse();
 
-      noBtn.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%)`;
-      requestAnimationFrame(tick);
-    }
+  pos.x += (target.x - pos.x) * SPEED;
+  pos.y += (target.y - pos.y) * SPEED;
+
+  noBtn.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -50%)`;
+  requestAnimationFrame(tick);
+}
+
     requestAnimationFrame(tick);
 
     // Détecte la souris et déclenche la fuite
