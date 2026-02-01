@@ -14,6 +14,7 @@ body{
   align-items:center;
   font-family: system-ui, Arial, sans-serif;
   background: linear-gradient(135deg,#ffdde1,#ee9ca7);
+  overflow:hidden;
 }
 
 .card{
@@ -23,12 +24,10 @@ body{
   width:min(520px,92vw);
   text-align:center;
   box-shadow:0 20px 60px rgba(0,0,0,.2);
+  z-index:1;
 }
 
-h1{ margin-top:0 }
-
 .arena{
-  position:relative;
   height:160px;
   margin-top:20px;
 }
@@ -49,10 +48,12 @@ button{
 
 #no{
   background:#f2f2f2;
-  position:absolute;
-  left:50%;
-  top:50%;
+  position:fixed;
+  left:50vw;
+  top:55vh;
   transform:translate(-50%,-50%);
+  z-index:9999;
+  will-change:left, top, transform;
 }
 
 #result{
@@ -72,17 +73,27 @@ button{
   border-radius:18px;
   box-shadow:0 16px 40px rgba(0,0,0,.25);
 }
+
+/* Tremblement */
+.shake{
+  animation: shake 0.12s infinite;
+}
+@keyframes shake{
+  0%{ transform:translate(-50%,-50%) translate(0,0); }
+  25%{ transform:translate(-50%,-50%) translate(-2px,1px); }
+  50%{ transform:translate(-50%,-50%) translate(2px,-1px); }
+  75%{ transform:translate(-50%,-50%) translate(-1px,2px); }
+}
 </style>
 </head>
 
 <body>
 <div class="card">
   <h1>Boubou veux-tu être ma valentine ? 💘</h1>
-  <p>Un conseil ne te trompe pas !💕 </p>
+  <p>Une réponse est un peu plus compliquée que l’autre 😅</p>
 
-  <div class="arena" id="arena">
+  <div class="arena">
     <button id="yes">Oui 😍</button>
-    <button id="no">Non 🙃</button>
   </div>
 
   <div id="result"></div>
@@ -92,43 +103,80 @@ button{
   </div>
 </div>
 
+<button id="no">Non 🙃</button>
+
 <script>
 const noBtn = document.getElementById("no");
 const yesBtn = document.getElementById("yes");
-const arena = document.getElementById("arena");
 const result = document.getElementById("result");
 const photoWrap = document.getElementById("photoWrap");
 
-const MIN_DIST = 120; // distance minimale souris/bouton
-const SPEED = 18;     // vitesse de fuite (px)
+const MIN_DIST = 150;
+const DASH_DIST = 80;
+let baseSpeed = 12;
+let speed = baseSpeed;
+let moves = 0;
 
-arena.addEventListener("mousemove", (e) => {
-  const arenaRect = arena.getBoundingClientRect();
-  const btnRect = noBtn.getBoundingClientRect();
+function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
 
-  const mouseX = e.clientX - arenaRect.left;
-  const mouseY = e.clientY - arenaRect.top;
+function dodge(mx, my){
+  const b = noBtn.getBoundingClientRect();
+  const bx = b.left + b.width/2;
+  const by = b.top + b.height/2;
 
-  const btnX = btnRect.left - arenaRect.left + btnRect.width/2;
-  const btnY = btnRect.top - arenaRect.top + btnRect.height/2;
-
-  const dx = btnX - mouseX;
-  const dy = btnY - mouseY;
+  const dx = bx - mx;
+  const dy = by - my;
   const dist = Math.hypot(dx, dy);
 
-  if (dist < MIN_DIST) {
-    const angle = Math.atan2(dy, dx);
-    const newX = btnX + Math.cos(angle) * SPEED;
-    const newY = btnY + Math.sin(angle) * SPEED;
-
-    noBtn.style.left = `${Math.max(0, Math.min(arenaRect.width, newX))}px`;
-    noBtn.style.top  = `${Math.max(0, Math.min(arenaRect.height, newY))}px`;
-    noBtn.style.transform = "translate(-50%,-50%)";
+  if (dist > MIN_DIST) {
+    noBtn.classList.remove("shake");
+    return;
   }
-});
+
+  // panique = tremblement
+  noBtn.classList.add("shake");
+
+  moves++;
+  speed = baseSpeed + Math.min(28, moves * 0.7);
+
+  let angle = Math.atan2(dy, dx);
+
+  // DASH brutal si trop proche
+  if (dist < DASH_DIST) {
+    speed *= 2.8;
+    angle += (Math.random() - 0.5) * 1.2;
+  } else {
+    angle += (Math.random() - 0.5) * 0.5;
+  }
+
+  const nx = bx + Math.cos(angle) * speed;
+  const ny = by + Math.sin(angle) * speed;
+
+  const m = 6;
+  noBtn.style.left =
+    clamp(nx, m + b.width/2, window.innerWidth - m - b.width/2) + "px";
+  noBtn.style.top =
+    clamp(ny, m + b.height/2, window.innerHeight - m - b.height/2) + "px";
+}
+
+// Souris
+window.addEventListener("mousemove", e => dodge(e.clientX, e.clientY));
+
+// Mobile
+window.addEventListener("touchmove", e => {
+  if (!e.touches[0]) return;
+  dodge(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive:true });
+
+noBtn.addEventListener("touchstart", e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  if (t) dodge(t.clientX, t.clientY);
+}, { passive:false });
 
 noBtn.addEventListener("click", e => e.preventDefault());
 
+// OUI
 yesBtn.addEventListener("click", () => {
   result.textContent = "Yesss 😭❤️ Bonne Saint-Valentin !";
   photoWrap.style.display = "block";
